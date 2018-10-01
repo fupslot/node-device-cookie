@@ -23,7 +23,6 @@ app.use(session({
 
 app.use(express.json());
 app.use(DeviceCookie({
-  disabled: false,
   includePath: ['/']
 }));
 

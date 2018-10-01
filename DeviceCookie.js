@@ -4,12 +4,11 @@ const mm = require('micromatch');
 const redis = require('./redis');
 
 class DeviceCookie {
-  constructor(req, config) {
+  constructor(req) {
     this.req = req;
     this.token = null;
     this.trusted = false;
     this.decoded = null;
-    this.disabled = config.disabled;
   }
 
   async generate(subject, trusted) {
@@ -95,18 +94,14 @@ class DeviceCookie {
 }
 
 const defaultConfig = {
-  disabled: false,
   includePath: []
 };
 
 module.exports = (config = defaultConfig) => {
   return async(req, res, next) => {
-    req.deviceCookie = new DeviceCookie(req, config);
+    req.deviceCookie = new DeviceCookie(req);
 
-    if (
-      config.disabled ||
-      !mm.any(req.path, config.includePath)
-    ) return next();
+    if (!mm.any(req.path, config.includePath)) return next();
 
     await req.deviceCookie.readFromResponse();
     
