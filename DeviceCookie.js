@@ -65,7 +65,7 @@ class DeviceCookie {
     });
   }
   
-  markAsUntrusted(username) {
+  markAttempt(username) {
     return new Promise(async(resolve) => {
       if (!await redis.existsAsync(`device:${username}`)) {
         await redis.hsetAsync(`device:${username}`, 'attempts', 0);
@@ -103,7 +103,7 @@ class DeviceCookie {
       if (sess) await redis.delAsync(`sess:${sess}`);
       await redis.setAsync(`device:lastsess:${this.decoded.sub}`, this.req.session.id);
     } else {
-      await this.markAsUntrusted(this.decoded.sub);
+      await this.markAttempt(this.decoded.sub);
       // destroy untrust session
       await (new Promise((res) => this.req.session.destroy(res)));
     }
