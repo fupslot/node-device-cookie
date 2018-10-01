@@ -28,7 +28,10 @@ module.exports.post = async(req, res, next) => {
 
     await deviceCookie.detectDevice({trusted: true});
   
-    res.status(200).json(deviceCookie.decoded);
+    res.status(200).json({
+      decoded: deviceCookie.decoded,
+      sessionId: req.sessionID
+    });
   } catch (error) {
     next(error);
   }

@@ -4,11 +4,13 @@ const mm = require('micromatch');
 const redis = require('./redis');
 
 class DeviceCookie {
-  constructor(req) {
+  constructor(req, config={}) {
     this.req = req;
     this.token = null;
     this.trusted = false;
     this.decoded = null;
+    this.timePeriodMS = config.timePeriodMS || 60 * 60 * 1000;
+    this.maxAttempts = config.maxAttempts || 10;
   }
 
   async generate(subject, trusted) {
@@ -49,25 +51,35 @@ class DeviceCookie {
   isLocked() {
     return new Promise(async(resolve) => {
       if (this.trusted) return resolve(false);
-      const attempts = Number(await redis.getAsync(`device:lock:${this.decoded.sub}`));
-      resolve(attempts >= 10);
+      const attempts = Number(await redis.hgetAsync(`device:${this.decoded.sub}`, 'attempts'));
+      
+      const locked = attempts >= this.maxAttempts;
+      if (locked) {
+        await redis.hsetAsync(`device:${this.decoded.sub}`, 'lockedAt', (new Date()));
+        await redis.hsetAsync(`device:${this.decoded.sub}`, 'ip', this.req.ip);
+        // destroy untrust session
+        await (new Promise((res) => this.req.session.destroy(res)));
+      }
+
+      resolve(locked);
     });
   }
   
   markAsUntrusted(username) {
     return new Promise(async(resolve) => {
-      if (!await redis.existsAsync(`device:lock:${username}`)) {
-        await redis.setexAsync(`device:lock:${username}`, 3600, 0);
+      if (!await redis.existsAsync(`device:${username}`)) {
+        await redis.hsetAsync(`device:${username}`, 'attempts', 0);
+        await redis.expireAsync(`device:${username}`, this.timePeriodMS / 1000);
       }
   
-      await redis.incrAsync(`device:lock:${username}`);
+      await redis.hincrbyAsync(`device:${username}`, 'attempts', 1);
       resolve(true);
     });
   };
   
   unlockDevice(username) {
     return new Promise(async(resolve) => {
-      await redis.delAsync(`device:lock:${username}`);
+      await redis.delAsync(`device:${username}`);
       resolve();
     });
   }
@@ -87,8 +99,13 @@ class DeviceCookie {
       await this.generate(this.decoded.sub, true);
       // replace request token with a trusted one
       this.req.session.deviceCookie = this.token;
+      const sess = await redis.getAsync(`device:lastsess:${this.decoded.sub}`);
+      if (sess) await redis.delAsync(`sess:${sess}`);
+      await redis.setAsync(`device:lastsess:${this.decoded.sub}`, this.req.session.id);
     } else {
       await this.markAsUntrusted(this.decoded.sub);
+      // destroy untrust session
+      await (new Promise((res) => this.req.session.destroy(res)));
     }
   }
 }
@@ -97,9 +114,9 @@ const defaultConfig = {
   includePath: []
 };
 
-module.exports = (config = defaultConfig) => {
+module.exports = (config=defaultConfig) => {
   return async(req, res, next) => {
-    req.deviceCookie = new DeviceCookie(req);
+    req.deviceCookie = new DeviceCookie(req, config);
 
     if (!mm.any(req.path, config.includePath)) return next();
 

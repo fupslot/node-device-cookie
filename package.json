@@ -15,6 +15,7 @@
     "delay": "2000"
   },
   "dependencies": {
+    "connect-redis": "^3.4.0",
     "express": "^4.16.3",
     "express-session": "^1.15.6",
     "jsonwebtoken": "^8.3.0",
