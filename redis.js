@@ -1,12 +1,14 @@
 const util = require('util');
 const redis = require('redis');
+const commands = require('redis-commands');
 
 const client = redis.createClient('redis://localhost:6379');
 
-module.exports = {
-  getAsync: util.promisify(client.get).bind(client),
-  delAsync: util.promisify(client.del).bind(client),
-  setexAsync: util.promisify(client.setex).bind(client),
-  incrAsync:  util.promisify(client.incr).bind(client),
-  existsAsync: util.promisify(client.exists).bind(client),
-};
+module.exports = commands.list.reduce((api, command) => {
+  // Some rare Redis commands use special characters in their command name
+  // Convert those to a underscore to prevent using invalid function names
+  var commandName = command.replace(/(?:^([0-9])|[^a-zA-Z0-9_$])/g, '_$1');
+  
+  api[`${commandName}Async`] = util.promisify(client[commandName]).bind(client);
+  return api;
+}, { /* api object */ });
