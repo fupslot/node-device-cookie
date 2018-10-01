@@ -1,0 +1,28 @@
+{
+  "name": "node-device-cookies",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "./node_modules/.bin/nodemon --exec \"npm run debug\"",
+    "debug": "node --inspect=0.0.0.0:5858 index.js"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "test/*",
+      "docs/*"
+    ],
+    "delay": "2000"
+  },
+  "dependencies": {
+    "express": "^4.16.3",
+    "express-session": "^1.15.6",
+    "jsonwebtoken": "^8.3.0",
+    "micromatch": "^3.1.10",
+    "redis": "^2.8.0",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^1.18.4"
+  }
+}
