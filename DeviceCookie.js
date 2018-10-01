@@ -41,6 +41,7 @@ class DeviceCookie {
         audience: 'device-cookie'
       }, (error, decoded) => {
         if (error) return reject(error);
+        this.trusted = decoded.trst;
         resolve(decoded);
       });
     });
@@ -48,6 +49,7 @@ class DeviceCookie {
   
   isLocked() {
     return new Promise(async(resolve) => {
+      if (this.trusted) return resolve(false);
       const attempts = Number(await redis.getAsync(`device:lock:${this.decoded.sub}`));
       resolve(attempts >= 10);
     });
@@ -56,7 +58,7 @@ class DeviceCookie {
   markAsUntrusted(username) {
     return new Promise(async(resolve) => {
       if (!await redis.existsAsync(`device:lock:${username}`)) {
-        await redis.setexAsync(`device:lock:${username}`, 30, 0);
+        await redis.setexAsync(`device:lock:${username}`, 3600, 0);
       }
   
       await redis.incrAsync(`device:lock:${username}`);
@@ -71,9 +73,11 @@ class DeviceCookie {
     });
   }
 
-  async tryReadToken(token) {
-    this.token = token;
-    this.decoded = token ? await this.decode(token) : null;
+  async readFromResponse() {
+    if (this.req.session) {
+      this.token = this.req.session.deviceCookie;
+    }
+    this.decoded = this.token ? await this.decode(this.token) : null;
   }
 
   async detectDevice(options = {}) {
@@ -104,19 +108,15 @@ module.exports = (config = defaultConfig) => {
       !mm.any(req.path, config.includePath)
     ) return next();
 
-    await req.deviceCookie.tryReadToken(req.session.deviceCookie);
+    await req.deviceCookie.readFromResponse();
     
     const username = req.body.username;
 
     if (!req.deviceCookie.token || req.deviceCookie.decoded.sub !== username) {
-      await req.deviceCookie.generate(username, false);
-
-      if (await req.deviceCookie.isLocked()) {
-        return res.sendStatus(403);
-      }
-
-      req.session.deviceCookie = req.deviceCookie.token;
+      await req.deviceCookie.generate(username, false);  
     }
+    
+    req.session.deviceCookie = req.deviceCookie.token;
 
     next();
   }

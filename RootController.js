@@ -16,9 +16,9 @@ module.exports.post = async(req, res, next) => {
     let password = req.body.password;
     
     const deviceCookie = req.deviceCookie;
-
-    if (!deviceCookie.disabled) {
-      username = deviceCookie.decoded.sub;
+    
+    if (await req.deviceCookie.isLocked()) {
+      return res.sendStatus(403);
     }
 
     if (!await auth(username, password)) {
